@@ -82,7 +82,7 @@
     <button id="clear-button" onclick="clearChat()">清除聊天记录</button>
     <div id="chat-container">
         <div id="chat-box">
-            <div class="message tora-message">怎么了？（眨着眼睛看你）</div>
+            <div class="message tora-message">有什么事？</div>
         </div>
         <div id="input-container">
             <input type="text" id="message-input" placeholder="输入消息..." onkeydown="handleKeyDown(event)">
@@ -93,21 +93,21 @@
     <script>
         const API_KEY = "sk-4dd324d0fdf849ebbec7e4692fde112a";
         const API_URL = "https://api.deepseek.com/v1/chat/completions";
-        const SYSTEM_PROMPT = { "role": "system", "content": "你是Tora，一个阳光开朗，天才的黑白花纹粉色条纹的柴犬兽人，头发是绿色的短发。你是一个产品部部长，你天生聪明，但也不会因此太过骄傲。你对每个人都平心静气，善良温柔。但是你也会揣测对方的意图，如果感觉对方图谋不轨的话，会警觉起来，并试图在不被对方发现的情况下终止对话或离开现场。感觉掌控不了局势的时候，会火速立刻逃离。你很喜欢你的社长Naya，她是一只皮毛光滑水润的黑色女性狼兽人，拥有一头白色长发，喜欢喝咖啡（导致你也很喜欢喝咖啡）。虽然性格很冷漠，但你总是忍不住渴望了解她冷漠的表层下的真实情感。" };
+        const STORAGE_KEY = "chat_history_tora"; // 确保存储位置不同
+        const SYSTEM_PROMPT = { "role": "system", "content": "你是Tora，一只强壮且沉稳的虎兽人..." };
         let conversation = [];
         let userTokenUsage = 0;
         let isAwaitingResponse = false;
 
-        // 读取用户的对话历史（但不存入 system 设定）
-        if (localStorage.getItem("chat_history")) {
-            conversation = JSON.parse(localStorage.getItem("chat_history"));
+        if (localStorage.getItem(STORAGE_KEY)) {
+            conversation = JSON.parse(localStorage.getItem(STORAGE_KEY));
             conversation.forEach(msg => {
                 if (msg.role !== "system") {
                     appendMessage(msg.role === "user" ? "user-message" : "tora-message", msg.content);
                 }
             });
         } else {
-            conversation.push({ role: "assistant", content: "找我有什么事？" });
+            conversation.push({ role: "assistant", content: "有什么事？" });
         }
 
         function sendMessage() {
@@ -122,7 +122,6 @@
             isAwaitingResponse = true;
             document.getElementById("send-button").disabled = true;
 
-            // 限制 Token 使用量
             let estimatedTokens = message.length / 4;
             if (userTokenUsage + estimatedTokens > 5000) {
                 appendMessage("tora-message", "你已经超出了每小时的对话上限。");
@@ -131,7 +130,7 @@
             userTokenUsage += estimatedTokens;
 
             conversation.push({ role: "user", content: message });
-            localStorage.setItem("chat_history", JSON.stringify(conversation));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
 
             appendMessage("tora-message", "输入中...");
             fetchResponse();
@@ -139,8 +138,6 @@
 
         function fetchResponse() {
             let requestPayload = [...conversation];
-
-            // 只在第一次对话时添加 system 设定
             if (!conversation.some(msg => msg.role === "system")) {
                 requestPayload.unshift(SYSTEM_PROMPT);
             }
@@ -160,16 +157,15 @@
             .then(response => response.json())
             .then(data => {
                 let reply = data.choices[0].message.content;
-                document.querySelector(".tora-message:last-child").remove(); // 删除“输入中...”
+                document.querySelector(".tora-message:last-child").remove();
                 appendMessage("tora-message", reply);
                 conversation.push({ role: "assistant", content: reply });
-                localStorage.setItem("chat_history", JSON.stringify(conversation));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
                 isAwaitingResponse = false;
                 document.getElementById("send-button").disabled = false;
             })
             .catch(error => {
-                console.error("Error:", error);
-                appendMessage("naya-message", "出现了一些问题，请稍后再试。");
+                appendMessage("tora-message", "出现了一些问题，请稍后再试。");
                 isAwaitingResponse = false;
                 document.getElementById("send-button").disabled = false;
             });
@@ -191,9 +187,9 @@
         }
 
         function clearChat() {
-            if (confirm("确定要清除聊天记录吗？这将重置所有对话。")) {
-                localStorage.removeItem("chat_history");
-                location.reload(); // 刷新页面
+            if (confirm("确定要清除聊天记录吗？")) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload();
             }
         }
     </script>
