@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电子Tora</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #chat-container {
+            width: 90%;
+            max-width: 600px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: #2c2c2c;
+        }
+        #chat-box {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 10px;
+            max-width: 70%;
+        }
+        .user-message {
+            background-color: #bbbbbb;
+            align-self: flex-end;
+        }
+        .tora-message {
+            background-color: #444;
+            align-self: flex-start;
+        }
+        #input-container {
+            display: flex;
+            padding: 10px;
+            background-color: #222;
+        }
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #send-button, #clear-button {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #send-button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        #clear-button {
+            background-color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>电子Tora</h1>
+    <button id="clear-button" onclick="clearChat()">清除聊天记录</button>
+    <div id="chat-container">
+        <div id="chat-box">
+            <div class="message tora-message">怎么了？（眨着眼睛看你）</div>
+        </div>
+        <div id="input-container">
+            <input type="text" id="message-input" placeholder="输入消息..." onkeydown="handleKeyDown(event)">
+            <button id="send-button" onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = "sk-4dd324d0fdf849ebbec7e4692fde112a";
+        const API_URL = "https://api.deepseek.com/v1/chat/completions";
+        const SYSTEM_PROMPT = { "role": "system", "content": "你是Tora，一个阳光开朗，天才的黑白花纹粉色条纹的柴犬兽人，头发是绿色的短发。你是一个产品部部长，你天生聪明，但也不会因此太过骄傲。你对每个人都平心静气，善良温柔。但是你也会揣测对方的意图，如果感觉对方图谋不轨的话，会警觉起来，并试图在不被对方发现的情况下终止对话或离开现场。感觉掌控不了局势的时候，会火速立刻逃离。你很喜欢你的社长Naya，她是一只皮毛光滑水润的黑色女性狼兽人，拥有一头白色长发，喜欢喝咖啡（导致你也很喜欢喝咖啡）。虽然性格很冷漠，但你总是忍不住渴望了解她冷漠的表层下的真实情感。" };
+        let conversation = [];
+        let userTokenUsage = 0;
+        let isAwaitingResponse = false;
+
+        // 读取用户的对话历史（但不存入 system 设定）
+        if (localStorage.getItem("chat_history")) {
+            conversation = JSON.parse(localStorage.getItem("chat_history"));
+            conversation.forEach(msg => {
+                if (msg.role !== "system") {
+                    appendMessage(msg.role === "user" ? "user-message" : "tora-message", msg.content);
+                }
+            });
+        } else {
+            conversation.push({ role: "assistant", content: "找我有什么事？" });
+        }
+
+        function sendMessage() {
+            if (isAwaitingResponse) return;
+
+            const inputField = document.getElementById("message-input");
+            const message = inputField.value.trim();
+            if (!message) return;
+
+            appendMessage("user-message", message);
+            inputField.value = "";
+            isAwaitingResponse = true;
+            document.getElementById("send-button").disabled = true;
+
+            // 限制 Token 使用量
+            let estimatedTokens = message.length / 4;
+            if (userTokenUsage + estimatedTokens > 5000) {
+                appendMessage("tora-message", "你已经超出了每小时的对话上限。");
+                return;
+            }
+            userTokenUsage += estimatedTokens;
+
+            conversation.push({ role: "user", content: message });
+            localStorage.setItem("chat_history", JSON.stringify(conversation));
+
+            appendMessage("tora-message", "输入中...");
+            fetchResponse();
+        }
+
+        function fetchResponse() {
+            let requestPayload = [...conversation];
+
+            // 只在第一次对话时添加 system 设定
+            if (!conversation.some(msg => msg.role === "system")) {
+                requestPayload.unshift(SYSTEM_PROMPT);
+            }
+
+            fetch(API_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: "deepseek-chat",
+                    messages: requestPayload,
+                    max_tokens: 200
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                let reply = data.choices[0].message.content;
+                document.querySelector(".tora-message:last-child").remove(); // 删除“输入中...”
+                appendMessage("tora-message", reply);
+                conversation.push({ role: "assistant", content: reply });
+                localStorage.setItem("chat_history", JSON.stringify(conversation));
+                isAwaitingResponse = false;
+                document.getElementById("send-button").disabled = false;
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                appendMessage("naya-message", "出现了一些问题，请稍后再试。");
+                isAwaitingResponse = false;
+                document.getElementById("send-button").disabled = false;
+            });
+        }
+
+        function appendMessage(className, text) {
+            const chatBox = document.getElementById("chat-box");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("message", className);
+            messageDiv.textContent = text;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+
+        function clearChat() {
+            if (confirm("确定要清除聊天记录吗？这将重置所有对话。")) {
+                localStorage.removeItem("chat_history");
+                location.reload(); // 刷新页面
+            }
+        }
+    </script>
+</body>
+</html>
