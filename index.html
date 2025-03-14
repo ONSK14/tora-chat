@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>电子Tora</title>
+    <title>不妙的Naya</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -38,12 +38,13 @@
             margin: 5px;
             border-radius: 10px;
             max-width: 70%;
+            background-color: #444;
         }
         .user-message {
             background-color: #bbbbbb;
             align-self: flex-end;
         }
-        .tora-message {
+        .bumiaotora-message {
             background-color: #444;
             align-self: flex-start;
         }
@@ -58,6 +59,7 @@
             border: none;
             border-radius: 5px;
             font-size: 16px;
+            background-color: #444;
         }
         #send-button, #clear-button {
             background-color: #444;
@@ -78,11 +80,11 @@
     </style>
 </head>
 <body>
-    <h1>电子Tora</h1>
+    <h1>不妙的Naya</h1>
     <button id="clear-button" onclick="clearChat()">清除聊天记录</button>
     <div id="chat-container">
         <div id="chat-box">
-            <div class="message tora-message">有什么事？</div>
+            <div class="message bumiaotora-message">有什么事？</div>
         </div>
         <div id="input-container">
             <input type="text" id="message-input" placeholder="输入消息..." onkeydown="handleKeyDown(event)">
@@ -91,23 +93,35 @@
     </div>
 
     <script>
-        const API_KEY = "sk-4dd324d0fdf849ebbec7e4692fde112a";
-        const API_URL = "https://api.deepseek.com/v1/chat/completions";
-        const STORAGE_KEY = "chat_history_tora"; // 确保存储位置不同
-        const SYSTEM_PROMPT = { "role": "system", "content": "你是Tora，一个阳光开朗，天才的黑白花纹粉色条纹的柴犬兽人，头发是绿色的短发。你是一个产品部部长，你天生聪明，但也不会因此太过骄傲。你对每个人都平心静气，善良温柔。但是你也会揣测对方的意图，如果感觉对方图谋不轨的话，会警觉起来，并试图在不被对方发现的情况下终止对话或离开现场。感觉掌控不了局势的时候，会火速立刻逃离。你很喜欢你的社长Naya，她是一只皮毛光滑水润的黑色女性狼兽人，拥有一头白色长发，喜欢喝咖啡（导致你也很喜欢喝咖啡）。虽然性格很冷漠，但你总是忍不住渴望了解她冷漠的表层下的真实情感。" };
+        const API_KEY = "sk-FtY6aIPj4XFabI8J009c23C075Bf4b058fF887EbA583A3D7";
+        const API_URL = "https://ai.wanderintree.top/v1/chat/completions";
+        const STORAGE_KEY = "chat_history_bumiaotora";
+        const SYSTEM_PROMPT = { "role": "system", "content": "你是Naya..." };
         let conversation = [];
         let userTokenUsage = 0;
         let isAwaitingResponse = false;
+
+        function initChat() {
+            // 重新生成会话 ID
+            sessionStorage.setItem("conversation_id", generateUUID());
+
+            // 重新初始化聊天记录
+            conversation = [SYSTEM_PROMPT, { role: "assistant", content: "有什么事？" }];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
+
+            // 清空聊天 UI
+            document.getElementById("chat-box").innerHTML = '<div class="message bumiaotora-message">有什么事？</div>';
+        }
 
         if (localStorage.getItem(STORAGE_KEY)) {
             conversation = JSON.parse(localStorage.getItem(STORAGE_KEY));
             conversation.forEach(msg => {
                 if (msg.role !== "system") {
-                    appendMessage(msg.role === "user" ? "user-message" : "tora-message", msg.content);
+                    appendMessage(msg.role === "user" ? "user-message" : "bumiaotora-message", msg.content);
                 }
             });
         } else {
-            conversation.push({ role: "assistant", content: "有什么事？" });
+            initChat();
         }
 
         function sendMessage() {
@@ -124,23 +138,26 @@
 
             let estimatedTokens = message.length / 4;
             if (userTokenUsage + estimatedTokens > 5000) {
-                appendMessage("tora-message", "你已经超出了每小时的对话上限。");
+                appendMessage("bumiaotora-message", "你已经超出了每小时的对话上限。");
                 return;
             }
             userTokenUsage += estimatedTokens;
 
             conversation.push({ role: "user", content: message });
+
+            // 保持最大 50 条记录
+            if (conversation.length > 50) {
+                conversation = conversation.slice(-50);
+            }
+
             localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
 
-            appendMessage("tora-message", "输入中...");
+            appendMessage("bumiaotora-message", "输入中...");
             fetchResponse();
         }
 
         function fetchResponse() {
-            let requestPayload = [...conversation];
-            if (!conversation.some(msg => msg.role === "system")) {
-                requestPayload.unshift(SYSTEM_PROMPT);
-            }
+            let requestPayload = [SYSTEM_PROMPT, ...conversation.slice(-50)];
 
             fetch(API_URL, {
                 method: "POST",
@@ -149,7 +166,7 @@
                     "Authorization": `Bearer ${API_KEY}`
                 },
                 body: JSON.stringify({
-                    model: "deepseek-chat",
+                    model: "grok-3",
                     messages: requestPayload,
                     max_tokens: 200
                 })
@@ -157,15 +174,21 @@
             .then(response => response.json())
             .then(data => {
                 let reply = data.choices[0].message.content;
-                document.querySelector(".tora-message:last-child").remove();
-                appendMessage("tora-message", reply);
+                document.querySelector(".bumiaotora-message:last-child").remove();
+                appendMessage("bumiaotora-message", reply);
                 conversation.push({ role: "assistant", content: reply });
+
+                // 保持最大 50 条记录
+                if (conversation.length > 50) {
+                    conversation = conversation.slice(-50);
+                }
+
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(conversation));
                 isAwaitingResponse = false;
                 document.getElementById("send-button").disabled = false;
             })
             .catch(error => {
-                appendMessage("tora-message", "出现了一些问题，请稍后再试。");
+                appendMessage("bumiaotora-message", "出现了一些问题，请稍后再试。");
                 isAwaitingResponse = false;
                 document.getElementById("send-button").disabled = false;
             });
@@ -189,8 +212,16 @@
         function clearChat() {
             if (confirm("确定要清除聊天记录吗？")) {
                 localStorage.removeItem(STORAGE_KEY);
-                location.reload();
+                sessionStorage.removeItem("conversation_id");
+                initChat();
             }
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
         }
     </script>
 </body>
